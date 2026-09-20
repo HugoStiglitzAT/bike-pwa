@@ -1,4 +1,4 @@
-// UUIDs müssen exakt mit dem ESP32 übereinstimmen
+// UUIDs
 const SERVICE_UUID        = "42616b65-2020-2020-2020-202020202020";
 const TELEMETRY_CHAR_UUID = "42616b65-0001-2020-2020-202020202020";
 const GPX_CHAR_UUID       = "42616b65-0002-2020-2020-202020202020";
@@ -7,6 +7,40 @@ let bleDevice = null;
 let telemetryChar = null;
 let gpxChar = null;
 
+// Wird direkt per onclick aufgerufen
+async function connectBLE() {
+    // 1. Visuelles Feedback durch Popup
+    alert("Bluetooth-Suche gestartet...");
+
+    if (!navigator.bluetooth) {
+        alert("FEHLER: Dieser Browser unterstützt kein Web Bluetooth!");
+        return;
+    }
+
+    try {
+        bleDevice = await navigator.bluetooth.requestDevice({
+            filters: [{ name: 'LilyGO-BikeComp' }],
+            optionalServices: [SERVICE_UUID]
+        });
+
+        alert("Gerät ausgewählt! Verbinde...");
+
+        const server = await bleDevice.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        
+        telemetryChar = await service.getCharacteristic(TELEMETRY_CHAR_UUID);
+        gpxChar = await service.getCharacteristic(GPX_CHAR_UUID);
+
+        document.getElementById('bleStatus').textContent = "VERBUNDEN";
+        document.getElementById('bleStatus').className = "status connected";
+
+        alert("Verbindung erfolgreich hergestellt!");
+
+    } catch (error) {
+        alert("Bluetooth-Fehler: " + error.message);
+        console.error(error);
+    }
+}
 let currentSpeed = 0;
 let currentDist = 0;
 let lastLat = null;
@@ -39,49 +73,7 @@ function logStatus(msg) {
     }
 }
 
-// --- BLE Verbindung herstellen ---
-async function connectBLE() {
-    logStatus("Bluetooth-Suche wird gestartet...");
 
-    if (!navigator.bluetooth) {
-        alert("Web Bluetooth wird von diesem Browser nicht unterstützt! Nutze z.B. Blueify auf iOS.");
-        logStatus("FEHLER: Web Bluetooth nicht unterstützt.");
-        return;
-    }
-
-    try {
-        bleDevice = await navigator.bluetooth.requestDevice({
-            filters: [{ name: 'LilyGO-BikeComp' }],
-            optionalServices: [SERVICE_UUID]
-        });
-
-        logStatus("Gerät ausgewählt, verbinde mit GATT...");
-
-        bleDevice.addEventListener('gattserverdisconnected', () => {
-            document.getElementById('bleStatus').textContent = "GETRENNT";
-            document.getElementById('bleStatus').className = "status";
-            logStatus("Verbindung getrennt.");
-        });
-
-        const server = await bleDevice.gatt.connect();
-        logStatus("GATT verbunden! Hole Service...");
-
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        telemetryChar = await service.getCharacteristic(TELEMETRY_CHAR_UUID);
-        gpxChar = await service.getCharacteristic(GPX_CHAR_UUID);
-
-        document.getElementById('bleStatus').textContent = "VERBUNDEN";
-        document.getElementById('bleStatus').className = "status connected";
-        logStatus("Erfolgreich mit LilyGO verbunden!");
-
-        startGPSTracking();
-        setInterval(sendTelemetry, 1000);
-
-    } catch (error) {
-        logStatus("BLE-Fehler: " + error.message);
-        console.error("BLE Connect Error:", error);
-    }
-}
 
 // --- GPS Tracking & Telemetrie ---
 function startGPSTracking() {
