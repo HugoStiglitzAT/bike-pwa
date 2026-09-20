@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bike Computer Hub</title>
     <link rel="manifest" href="manifest.json">
-    <theme-color content="#00e676">
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #121212; color: #fff; text-align: center; padding: 20px; margin: 0; }
         .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
@@ -14,9 +13,9 @@
         input[type="file"] { display: none; }
         .status { font-weight: bold; color: #ff5252; }
         .status.connected { color: #00e676; }
-        .telemetry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-        .val-box { background: #2a2a2a; padding: 10px; border-radius: 8px; }
-        .val { font-size: 24px; font-weight: bold; color: #00e676; }
+        .val-box { background: #2a2a2a; padding: 15px; border-radius: 8px; margin-top: 10px; }
+        .val { font-size: 32px; font-weight: bold; color: #00e676; }
+        progress { width: 100%; margin-top: 10px; height: 12px; }
     </style>
 </head>
 <body>
@@ -30,32 +29,21 @@
     </div>
 
     <div class="card">
-        <h3>2. Live-Telemetrie</h3>
-        <div class="telemetry-grid">
-            <div class="val-box">
-                <small>GPS Tempo</small>
-                <div id="valSpeed" class="val">0.0 km/h</div>
-            </div>
-            <div class="val-box">
-                <small>Puls (Watch/Gurt)</small>
-                <div id="valHR" class="val">-- bpm</div>
-            </div>
-        </div>
-        <button id="btnHR" style="background:#ff4081; color:#fff; margin-top:15px;">Puls-Sensor koppeln</button>
-    </div>
-
-    <div class="card">
-        <h3>3. GPX Route senden</h3>
+        <h3>2. GPX Route auf Display laden</h3>
         <label for="gpxInput" class="btn btn-file">GPX-Datei auswählen</label>
         <input type="file" id="gpxInput" accept=".gpx">
         <p id="gpxStatus" style="color:#aaa; font-size:14px;">Keine Route geladen</p>
+        <progress id="gpxProgress" value="0" max="100" style="display:none;"></progress>
+    </div>
+
+    <div class="card">
+        <h3>3. Aktuelles Tempo</h3>
+        <div class="val-box">
+            <small>GPS Tempo</small>
+            <div id="valSpeed" class="val">0.0 km/h</div>
+        </div>
     </div>
 
     <script src="app.js"></script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
-        }
-    </script>
 </body>
 </html>
