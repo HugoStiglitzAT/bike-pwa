@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bike-hub-v1';
+const CACHE_NAME = 'bike-hub-v2';
 const ASSETS = ['./', './index.html', './app.js', './manifest.json'];
 
 self.addEventListener('install', (e) => {
