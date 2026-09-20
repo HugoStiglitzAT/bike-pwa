@@ -6,25 +6,58 @@ const GPX_CHAR_UUID       = "42616b65-0002-2020-2020-202020202020";
 let bleDevice = null;
 let telemetryChar = null;
 let gpxChar = null;
-let isConnecting = false; // Verhindert doppelten Klick
+let isConnecting = false;
 
+let currentSpeed = 0;
+let currentDist = 0;
+let lastLat = null;
+let lastLon = null;
+
+// --- Initialisierung beim Seitenaufruf ---
+window.addEventListener('DOMContentLoaded', () => {
+    logStatus("Seite bereit. Bitte auf Koppeln tippen.");
+
+    // Bluetooth Button binden
+    const btnConnect = document.getElementById('btnConnect');
+    if (btnConnect) {
+        btnConnect.onclick = connectBLE; // .onclick verhindert doppelte Listener
+    } else {
+        logStatus("FEHLER: Button 'btnConnect' nicht in HTML gefunden!");
+    }
+
+    // GPX Upload Listener binden
+    const gpxInput = document.getElementById('gpxInput');
+    if (gpxInput) {
+        gpxInput.addEventListener('change', handleGPXUpload);
+    }
+});
+
+// --- Status & Logs anzeigen ---
+function logStatus(msg) {
+    console.log(msg);
+    const statusEl = document.getElementById('gpxStatus');
+    if (statusEl) {
+        statusEl.textContent = msg;
+    }
+}
+
+// --- BLE Verbindung herstellen ---
 async function connectBLE() {
-    if (isConnecting) return; // Wenn bereits ein Verbindungsversuch läuft, abbrechen!
+    if (isConnecting) return;
     isConnecting = true;
 
     try {
         if (!navigator.bluetooth) {
             alert("FEHLER: Web Bluetooth wird von diesem Browser nicht unterstützt!");
             isConnecting = false;
-            return;
+            return; // Hier fehlte das return!
         }
 
-        // Falls noch eine alte Verbindung besteht, sauber trennen
         if (bleDevice && bleDevice.gatt.connected) {
             await bleDevice.gatt.disconnect();
         }
 
-        console.log("Starte Bluetooth-Suche...");
+        logStatus("Starte Bluetooth-Suche...");
         bleDevice = await navigator.bluetooth.requestDevice({
             filters: [{ name: 'LilyGO-BikeComp' }],
             optionalServices: [SERVICE_UUID]
@@ -32,31 +65,29 @@ async function connectBLE() {
 
         bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
-        console.log("Verbinde mit GATT-Server...");
+        logStatus("Verbinde mit GATT-Server...");
         const server = await bleDevice.gatt.connect();
         
-        // Kleine Pause für stabile Verbindung unter iOS
         await new Promise(r => setTimeout(r, 300));
 
-        console.log("Hole Primary Service...");
+        logStatus("Hole Services & Characteristics...");
         const service = await server.getPrimaryService(SERVICE_UUID);
 
-        console.log("Hole Characteristics...");
         telemetryChar = await service.getCharacteristic(TELEMETRY_CHAR_UUID);
         gpxChar = await service.getCharacteristic(GPX_CHAR_UUID);
 
-        // Erfolgreich!
         document.getElementById('bleStatus').textContent = "VERBUNDEN";
         document.getElementById('bleStatus').className = "status connected";
-        
+        logStatus("Erfolgreich verbunden!");
+
         startGPSTracking();
         setInterval(sendTelemetry, 1000);
 
     } catch (error) {
         console.error("BLE-Fehler:", error);
-        // Detaillierte Fehlermeldung statt "undefined"
         const msg = error && error.message ? error.message : String(error);
         alert("Verbindungsfehler: " + msg);
+        logStatus("Verbindungsfehler: " + msg);
         
         document.getElementById('bleStatus').textContent = "FEHLER";
         document.getElementById('bleStatus').className = "status";
@@ -69,43 +100,10 @@ function onDisconnected() {
     console.log("BLE Trennung erkannt.");
     document.getElementById('bleStatus').textContent = "GETRENNT";
     document.getElementById('bleStatus').className = "status";
+    logStatus("Verbindung getrennt.");
     telemetryChar = null;
     gpxChar = null;
 }
-
-let currentSpeed = 0;
-let currentDist = 0;
-let lastLat = null;
-let lastLon = null;
-
-// Initialisierung bei Seitenaufruf
-window.addEventListener('DOMContentLoaded', () => {
-    logStatus("Seite bereit. Bitte auf Koppeln tippen.");
-
-    // Bluetooth Button
-    const btnConnect = document.getElementById('btnConnect');
-    if (btnConnect) {
-        btnConnect.addEventListener('click', connectBLE);
-    } else {
-        logStatus("FEHLER: Button 'btnConnect' nicht in HTML gefunden!");
-    }
-
-    // GPX Upload Listener
-    const gpxInput = document.getElementById('gpxInput');
-    if (gpxInput) {
-        gpxInput.addEventListener('change', handleGPXUpload);
-    }
-});
-
-function logStatus(msg) {
-    console.log(msg);
-    const statusEl = document.getElementById('gpxStatus');
-    if (statusEl) {
-        statusEl.textContent = msg;
-    }
-}
-
-
 
 // --- GPS Tracking & Telemetrie ---
 function startGPSTracking() {
@@ -229,11 +227,3 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
 }
-
-document.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById('btnConnect');
-    if (btn) {
-        // Entferne eventuelle alte Listener und binde neu
-        btn.onclick = connectBLE;
-    }
-});
