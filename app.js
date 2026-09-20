@@ -1,4 +1,4 @@
-// UUIDs
+// UUIDs (Müssen exakt mit dem ESP32 übereinstimmen)
 const SERVICE_UUID        = "42616b65-2020-2020-2020-202020202020";
 const TELEMETRY_CHAR_UUID = "42616b65-0001-2020-2020-202020202020";
 const GPX_CHAR_UUID       = "42616b65-0002-2020-2020-202020202020";
@@ -6,41 +6,73 @@ const GPX_CHAR_UUID       = "42616b65-0002-2020-2020-202020202020";
 let bleDevice = null;
 let telemetryChar = null;
 let gpxChar = null;
+let isConnecting = false; // Verhindert doppelten Klick
 
-// Wird direkt per onclick aufgerufen
 async function connectBLE() {
-    // 1. Visuelles Feedback durch Popup
-    alert("Bluetooth-Suche gestartet...");
-
-    if (!navigator.bluetooth) {
-        alert("FEHLER: Dieser Browser unterstützt kein Web Bluetooth!");
-        return;
-    }
+    if (isConnecting) return; // Wenn bereits ein Verbindungsversuch läuft, abbrechen!
+    isConnecting = true;
 
     try {
+        if (!navigator.bluetooth) {
+            alert("FEHLER: Web Bluetooth wird von diesem Browser nicht unterstützt!");
+            isConnecting = false;
+            return;
+        }
+
+        // Falls noch eine alte Verbindung besteht, sauber trennen
+        if (bleDevice && bleDevice.gatt.connected) {
+            await bleDevice.gatt.disconnect();
+        }
+
+        console.log("Starte Bluetooth-Suche...");
         bleDevice = await navigator.bluetooth.requestDevice({
             filters: [{ name: 'LilyGO-BikeComp' }],
             optionalServices: [SERVICE_UUID]
         });
 
-        alert("Gerät ausgewählt! Verbinde...");
+        bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
+        console.log("Verbinde mit GATT-Server...");
         const server = await bleDevice.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
         
+        // Kleine Pause für stabile Verbindung unter iOS
+        await new Promise(r => setTimeout(r, 300));
+
+        console.log("Hole Primary Service...");
+        const service = await server.getPrimaryService(SERVICE_UUID);
+
+        console.log("Hole Characteristics...");
         telemetryChar = await service.getCharacteristic(TELEMETRY_CHAR_UUID);
         gpxChar = await service.getCharacteristic(GPX_CHAR_UUID);
 
+        // Erfolgreich!
         document.getElementById('bleStatus').textContent = "VERBUNDEN";
         document.getElementById('bleStatus').className = "status connected";
-
-        alert("Verbindung erfolgreich hergestellt!");
+        
+        startGPSTracking();
+        setInterval(sendTelemetry, 1000);
 
     } catch (error) {
-        alert("Bluetooth-Fehler: " + error.message);
-        console.error(error);
+        console.error("BLE-Fehler:", error);
+        // Detaillierte Fehlermeldung statt "undefined"
+        const msg = error && error.message ? error.message : String(error);
+        alert("Verbindungsfehler: " + msg);
+        
+        document.getElementById('bleStatus').textContent = "FEHLER";
+        document.getElementById('bleStatus').className = "status";
+    } finally {
+        isConnecting = false;
     }
 }
+
+function onDisconnected() {
+    console.log("BLE Trennung erkannt.");
+    document.getElementById('bleStatus').textContent = "GETRENNT";
+    document.getElementById('bleStatus').className = "status";
+    telemetryChar = null;
+    gpxChar = null;
+}
+
 let currentSpeed = 0;
 let currentDist = 0;
 let lastLat = null;
